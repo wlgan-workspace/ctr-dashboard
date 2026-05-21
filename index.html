@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>亲子频道 CTR 数据看板</title>
+<style>
+:root {
+  --bg:#f7f6f3;
+  --panel:#ffffff;
+  --text:#37352f;
+  --muted:#787774;
+  --muted-2:#9b9a97;
+  --line:#e6e4df;
+  --line-strong:#d8d6d1;
+  --brand:#37352f;
+  --brand2:#5f5e59;
+  --cyan:#6b6a66;
+  --yellow:#f1efea;
+  --green:#4d7c57;
+  --shadow:0 1px 2px rgba(15,15,15,.06), 0 8px 24px rgba(15,15,15,.04);
+  --soft-shadow:0 1px 2px rgba(15,15,15,.05);
+  --radius:10px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;
+  color:var(--text);
+  background:var(--bg);
+  line-height:1.5;
+}
+.header{
+  padding:30px 28px 16px;
+  background:#f7f6f3;
+  border-bottom:1px solid var(--line);
+}
+.header-inner{max-width:1280px;margin:0 auto;display:flex;justify-content:space-between;gap:18px;align-items:flex-end}
+h1{margin:0 0 8px;font-size:30px;letter-spacing:-.02em;color:var(--text);font-weight:750}
+.subtitle{margin:0;color:var(--muted);font-size:14px;line-height:1.65}
+.badges{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.badge{
+  padding:5px 9px;border-radius:6px;background:#efeee9;border:1px solid #e4e2dc;
+  font-size:12px;color:#5f5e59;box-shadow:none;
+}
+.container{max-width:1280px;margin:0 auto;padding:18px 24px 40px}
+.filter-panel{
+  position:sticky;top:0;z-index:20;
+  background:rgba(247,246,243,.94);backdrop-filter:blur(12px);
+  border:1px solid var(--line);border-radius:12px;box-shadow:var(--soft-shadow);
+  padding:14px 16px;margin-bottom:16px;
+}
+.filter-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.filter-title{font-size:16px;font-weight:700;color:var(--text)}
+.filter-note{font-size:12px;color:var(--muted)}
+.filters{display:grid;grid-template-columns:1fr 1fr 1.2fr auto;gap:10px;align-items:end}
+.field label{display:block;font-size:12px;font-weight:650;color:var(--muted);margin-bottom:6px}
+select{
+  width:100%;height:38px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--text);
+  padding:0 10px;outline:none;font-weight:500;
+}
+select:focus{border-color:#b8b6b0;box-shadow:0 0 0 2px rgba(55,53,47,.08)}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+button{
+  height:38px;border:1px solid #d6d4cf;border-radius:6px;padding:0 12px;cursor:pointer;font-weight:600;
+  color:#fff;background:#37352f;box-shadow:none;
+}
+button:hover{background:#2f2e2a}
+button.secondary{background:#fff;color:var(--text);box-shadow:none;border:1px solid var(--line)}
+button.secondary:hover{background:#f1f0ec}
+.grid{display:grid;gap:16px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.card{
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--soft-shadow);
+  padding:16px;min-width:0;position:relative;overflow:hidden;
+}
+.card::before{display:none}
+.kpi-label{color:var(--muted);font-size:12px;font-weight:650;margin-bottom:8px}
+.kpi-value{font-size:30px;font-weight:760;letter-spacing:-.035em;line-height:1.05;white-space:nowrap;color:var(--text)}
+.kpi-sub{margin-top:8px;color:var(--muted);font-size:12px;line-height:1.5}
+.section-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 12px}
+.section-title h2,.section-title h3{margin:0;font-size:18px;font-weight:700;letter-spacing:-.01em}
+.section-title small{color:var(--muted);font-weight:500}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.chart{min-height:300px;width:100%;overflow:hidden;background:#fbfaf8;border:1px solid #eeece7;border-radius:8px;padding:4px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fff}
+table{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;font-size:13px}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{
+  position:sticky;top:0;z-index:2;background:#f7f6f3;font-size:12px;color:#5f5e59;cursor:pointer;
+  font-weight:650;border-bottom:1px solid var(--line-strong);
+}
+tbody tr:hover{background:#fbfaf8}
+tr:last-child td{border-bottom:0}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.rank{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;background:#efeee9;color:#5f5e59;font-weight:700}
+.rank.top{background:#37352f;color:#fff}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tab{background:#fff;color:#5f5e59;box-shadow:none;border:1px solid var(--line);height:34px;border-radius:6px}
+.tab:hover{background:#f1f0ec}
+.tab.active{background:#37352f;color:#fff;border-color:#37352f}
+.notice{
+  background:#fbfaf8;border:1px solid var(--line);color:#5f5e59;border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.65;
+}
+.notice b{color:var(--text)}
+.empty{color:var(--muted);padding:28px;text-align:center}
+.footer{color:var(--muted);font-size:12px;line-height:1.7;padding:2px 4px 0}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#d8d6d1;border-radius:999px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-track{background:transparent}
+@media(max-width:1100px){.filters{grid-template-columns:1fr 1fr}.kpis,.two-col{grid-template-columns:1fr 1fr}}
+@media(max-width:720px){.header-inner{flex-direction:column;align-items:flex-start}.container{padding:14px}.filters,.kpis,.two-col{grid-template-columns:1fr}.filter-panel{position:relative}}
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="header-inner">
+    <div>
+      <h1>亲子频道 CTR 数据看板</h1>
+      <p class="subtitle">默认展示全部数据；顶部支持日期、region、locale 快速筛选。页面 CTR = 导流页面 UV / 页面 UV；组件 CTR = 点击 UV / 曝光 UV。</p>
+    </div>
+    <div class="badges">
+      <span class="badge" id="dateBadge">日期</span>
+      <span class="badge" id="regionBadge">Region</span>
+      <span class="badge">组件：12 个</span>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+  <section class="filter-panel">
+    <div class="filter-head">
+      <div>
+        <div class="filter-title">筛选模块</div>
+        <div class="filter-note">默认均为 All；切换后自动刷新总览、趋势和明细数据。</div>
+      </div>
+      <div class="actions">
+        <button class="secondary" id="resetBtn">重置 All</button>
+        <button id="exportBtn">导出明细 CSV</button>
+      </div>
+    </div>
+    <div class="filters">
+      <div class="field">
+        <label for="dateFilter">日期</label>
+        <select id="dateFilter"></select>
+      </div>
+      <div class="field">
+        <label for="regionFilter">Region</label>
+        <select id="regionFilter"></select>
+      </div>
+      <div class="field">
+        <label for="localeFilter">Locale</label>
+        <select id="localeFilter"></select>
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <button class="secondary" id="showAllBtn">查看全部</button>
+      </div>
+    </div>
+  </section>
+
+  <main class="grid">
+    <section class="kpis" id="kpiBox"></section>
+
+    <section class="two-col">
+      <div class="card">
+        <div class="section-title"><h2>页面 CTR 每天趋势</h2><small id="pageTrendHint"></small></div>
+        <div id="pageTrendChart" class="chart"></div>
+        <div id="pageTrendTable"></div>
+      </div>
+      <div class="card">
+        <div class="section-title"><h2>组件 CTR 每天趋势</h2><small id="compTrendHint"></small></div>
+        <div id="compTrendChart" class="chart"></div>
+        <div id="compTrendTable"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-title">
+        <h2>明细数据</h2>
+        <small>默认按 CTR 从高到低排序，筛选后即时更新</small>
+      </div>
+      <div class="tabs">
+        <button class="tab active" data-tab="page">页面 CTR 明细</button>
+        <button class="tab" data-tab="component">组件 CTR 明细</button>
+        <button class="tab" data-tab="regionComponent">Region × 组件 CTR</button>
+        <button class="tab" data-tab="localeComponent">Locale × 组件 CTR</button>
+      </div>
+      <div id="detailTable"></div>
+    </section>
+
+    <section class="notice">
+      <b>口径说明：</b>页面 CTR 使用累计口径 Σ导流页面 UV / Σ页面 UV。组件 CTR 使用累计口径 Σ点击 UV / Σ曝光 UV。底部中插对话框使用埋点曝光 UV；用户反馈、回到顶部无曝光埋点，曝光 UV 统一使用页面 UV。订阅按钮如无埋点数据则显示 N/A。
+    </section>
+    <div class="footer">数据来源：data.json（最后更新：<span id="update-time">加载中…</span>）</div>
+  </main>
+<div id="loading-overlay" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(247,246,243,.95);z-index:999;font-size:14px;color:#787774">
+  <div style="text-align:center"><div style="font-size:28px;margin-bottom:12px">⏳</div>数据加载中…</div>
+</div>
+</div>
+
+<script>
+let DATA, dates, regions, locales;
+const $ = id => document.getElementById(id);
+let state = { tab:'page', sortKey:'ctr', sortDir:-1 };
+
+function fmtInt(v){ return (v||0).toLocaleString('en-US'); }
+function fmtPct(v,d=2){ return v===null||v===undefined||Number.isNaN(v)?'N/A':(v*100).toFixed(d)+'%'; }
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function sum(rows,key){ return rows.reduce((a,r)=>a+(Number(r[key])||0),0); }
+function ratio(num,den){ return den>0 ? num/den : null; }
+
+function initFilters(){
+  $('dateFilter').innerHTML = '<option value="ALL">All 日期</option>' + dates.map(d=>`<option value="${d}">${d}</option>`).join('');
+  $('regionFilter').innerHTML = '<option value="ALL">All Region</option>' + regions.map(r=>`<option value="${r}">${r}</option>`).join('');
+  renderLocaleOptions();
+  $('dateBadge').textContent = `日期：${dates[0]} ~ ${dates[dates.length-1]}`;
+  $('regionBadge').textContent = `Region：${regions.length} 个`;
+}
+
+function renderLocaleOptions(){
+  const region = $('regionFilter').value || 'ALL';
+  const current = $('localeFilter').value || 'ALL';
+  const opts = region==='ALL' ? locales : locales.filter(l=>DATA.pageRows.some(r=>r.region===region && r.locale===l));
+  $('localeFilter').innerHTML = '<option value="ALL">All Locale</option>' + opts.map(l=>`<option value="${l}">${l}</option>`).join('');
+  $('localeFilter').value = opts.includes(current) ? current : 'ALL';
+}
+
+function filters(){
+  return { date:$('dateFilter').value, region:$('regionFilter').value, locale:$('localeFilter').value };
+}
+function pass(r,f){
+  return (f.date==='ALL'||r.date===f.date) && (f.region==='ALL'||r.region===f.region) && (f.locale==='ALL'||r.locale===f.locale);
+}
+function filteredPage(){ const f=filters(); return DATA.pageRows.filter(r=>pass(r,f)); }
+function filteredComp(){ const f=filters(); return DATA.componentRows.filter(r=>pass(r,f)); }
+
+function group(rows, keys, fields){
+  const m = new Map();
+  rows.forEach(r=>{
+    const k = keys.map(x=>r[x]).join('||');
+    if(!m.has(k)){
+      const o={}; keys.forEach(x=>o[x]=r[x]); fields.forEach(x=>o[x]=0); o.rows=0; m.set(k,o);
+    }
+    const o=m.get(k); fields.forEach(x=>o[x]+=Number(r[x])||0); o.rows++;
+  });
+  return [...m.values()];
+}
+function pageAgg(rows, keys=[]){
+  return group(rows, keys, ['pageUV','flowUV']).map((r,i)=>({...r, ctr: ratio(r.flowUV,r.pageUV)}));
+}
+function compAgg(rows, keys=[]){
+  return group(rows, keys, ['exposureUV','clickUV']).map((r,i)=>({...r, ctr: ratio(r.clickUV,r.exposureUV)}));
+}
+function sorted(rows, key='ctr', dir=-1){
+  return [...rows].sort((a,b)=>{
+    const va=a[key], vb=b[key];
+    if(va==null && vb==null) return 0;
+    if(va==null) return 1;
+    if(vb==null) return -1;
+    if(typeof va==='number' && typeof vb==='number') return (va-vb)*dir;
+    return String(va).localeCompare(String(vb),'zh-CN')*dir;
+  });
+}
+
+function renderKPIs(){
+  const pRows=filteredPage(), cRows=filteredComp();
+  const p = pageAgg(pRows)[0] || {pageUV:0,flowUV:0,ctr:null};
+  const c = compAgg(cRows)[0] || {exposureUV:0,clickUV:0,ctr:null};
+  const topComp = sorted(compAgg(cRows,['component']),'ctr',-1).find(r=>r.ctr!==null);
+  const topRegion = sorted(pageAgg(pRows,['region']),'ctr',-1).find(r=>r.ctr!==null);
+  $('kpiBox').innerHTML = [
+    kpiCard('页面 CTR', fmtPct(p.ctr), `导流 UV ${fmtInt(p.flowUV)} / 页面 UV ${fmtInt(p.pageUV)}`),
+    kpiCard('组件 CTR', fmtPct(c.ctr), `点击 UV ${fmtInt(c.clickUV)} / 曝光 UV ${fmtInt(c.exposureUV)}`),
+    kpiCard('页面 CTR 最高 Region', topRegion ? esc(topRegion.region) : 'N/A', topRegion ? `${fmtPct(topRegion.ctr)}，页面 UV ${fmtInt(topRegion.pageUV)}` : '当前筛选无数据'),
+    kpiCard('CTR 最高组件', topComp ? esc(topComp.component) : 'N/A', topComp ? `${fmtPct(topComp.ctr)}，点击 ${fmtInt(topComp.clickUV)} / 曝光 ${fmtInt(topComp.exposureUV)}` : '当前筛选无有效曝光数据')
+  ].join('');
+}
+function kpiCard(label,value,sub){ return `<div class="card"><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div><div class="kpi-sub">${sub}</div></div>`; }
+
+function lineChart(elId, rows, valueKey, labelKey, pct=true){
+  const el=$(elId);
+  if(!rows.length){ el.innerHTML='<div class="empty">无数据</div>'; return; }
+  const w=760,h=285,p={l:50,r:20,t:24,b:42};
+  const vals=rows.map(r=>r[valueKey]).filter(v=>v!=null);
+  if(!vals.length){ el.innerHTML='<div class="empty">无有效 CTR 数据</div>'; return; }
+  const max=Math.max(...vals), min=Math.min(...vals);
+  const yMax=max===min?max+0.01:max*1.12, yMin=Math.max(0, min*0.88);
+  const x=i=>p.l+(w-p.l-p.r)*(rows.length===1?0.5:i/(rows.length-1));
+  const y=v=>h-p.b-(h-p.t-p.b)*((v-yMin)/(yMax-yMin||1));
+  const points=rows.map((r,i)=>`${x(i)},${y(r[valueKey]||0)}`).join(' ');
+  const grid=[0,.25,.5,.75,1].map(t=>{ const yy=p.t+(h-p.t-p.b)*t; const val=yMax-(yMax-yMin)*t; return `<line x1="${p.l}" x2="${w-p.r}" y1="${yy}" y2="${yy}" stroke="#e6e4df"/><text x="8" y="${yy+4}" font-size="11" fill="#787774">${fmtPct(val,0)}</text>`; }).join('');
+  const labels=rows.map((r,i)=>`<text x="${x(i)}" y="${h-16}" font-size="11" fill="#787774" text-anchor="middle">${String(r[labelKey]).slice(5)}</text>`).join('');
+  const dots=rows.map((r,i)=>`<circle cx="${x(i)}" cy="${y(r[valueKey]||0)}" r="4.8" fill="#fff" stroke="#37352f" stroke-width="3"><title>${r[labelKey]}：${fmtPct(r[valueKey])}</title></circle>`).join('');
+  el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" width="100%" height="100%" preserveAspectRatio="none">${grid}<polyline points="${points}" fill="none" stroke="url(#g${elId})" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="g${elId}" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#37352f"/><stop offset="55%" stop-color="#5f5e59"/><stop offset="100%" stop-color="#787774"/></linearGradient></defs>${dots}${labels}</svg>`;
+}
+function miniTable(elId, rows, cols){
+  if(!rows.length){ $(elId).innerHTML='<div class="empty">无数据</div>'; return; }
+  $(elId).innerHTML = `<div class="table-wrap"><table><thead><tr>${cols.map(c=>`<th>${c.label}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td class="${c.num?'num':''}">${c.f?c.f(r[c.key],r):esc(r[c.key])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+function renderTrends(){
+  const pTrend = sorted(pageAgg(filteredPage(), ['date']),'date',1);
+  const cTrend = sorted(compAgg(filteredComp(), ['date']),'date',1);
+  $('pageTrendHint').textContent = `${pTrend.length} 天`;
+  $('compTrendHint').textContent = `${cTrend.length} 天`;
+  lineChart('pageTrendChart', pTrend, 'ctr', 'date');
+  lineChart('compTrendChart', cTrend, 'ctr', 'date');
+  miniTable('pageTrendTable', pTrend, [
+    {label:'日期',key:'date'},{label:'页面 CTR',key:'ctr',num:true,f:fmtPct},{label:'页面 UV',key:'pageUV',num:true,f:fmtInt},{label:'导流 UV',key:'flowUV',num:true,f:fmtInt}
+  ]);
+  miniTable('compTrendTable', cTrend, [
+    {label:'日期',key:'date'},{label:'组件 CTR',key:'ctr',num:true,f:fmtPct},{label:'曝光 UV',key:'exposureUV',num:true,f:fmtInt},{label:'点击 UV',key:'clickUV',num:true,f:fmtInt}
+  ]);
+}
+
+function header(label,key){ return `<th data-key="${key}">${label}</th>`; }
+function renderDetails(){
+  let rows, cols;
+  if(state.tab==='page'){
+    rows = sorted(pageAgg(filteredPage(), ['region','locale']),'ctr',-1);
+    cols = [
+      ['排名','rank'],['Region','region'],['Locale','locale'],['页面 CTR','ctr'],['页面 UV','pageUV'],['导流 UV','flowUV']
+    ];
+  } else if(state.tab==='component'){
+    rows = sorted(compAgg(filteredComp(), ['component']),'ctr',-1);
+    cols = [
+      ['排名','rank'],['组件','component'],['组件 CTR','ctr'],['曝光 UV','exposureUV'],['点击 UV','clickUV']
+    ];
+  } else if(state.tab==='regionComponent'){
+    rows = sorted(compAgg(filteredComp(), ['region','component']),'ctr',-1);
+    cols = [
+      ['排名','rank'],['Region','region'],['组件','component'],['组件 CTR','ctr'],['曝光 UV','exposureUV'],['点击 UV','clickUV']
+    ];
+  } else {
+    rows = sorted(compAgg(filteredComp(), ['locale','component']),'ctr',-1);
+    cols = [
+      ['排名','rank'],['Locale','locale'],['组件','component'],['组件 CTR','ctr'],['曝光 UV','exposureUV'],['点击 UV','clickUV']
+    ];
+  }
+  const html = `<div class="table-wrap"><table><thead><tr>${cols.map(c=>header(c[0],c[1])).join('')}</tr></thead><tbody>${rows.map((r,i)=>`<tr>${cols.map(c=>cell(c[1],r,i)).join('')}</tr>`).join('')}</tbody></table></div>`;
+  $('detailTable').innerHTML = rows.length ? html : '<div class="empty">当前筛选无数据</div>';
+}
+function cell(key,r,i){
+  if(key==='rank') return `<td><span class="rank ${i<3?'top':''}">${i+1}</span></td>`;
+  if(key==='ctr') return `<td class="num">${fmtPct(r.ctr)}</td>`;
+  if(['pageUV','flowUV','exposureUV','clickUV'].includes(key)) return `<td class="num">${fmtInt(r[key])}</td>`;
+  return `<td>${esc(r[key])}</td>`;
+}
+
+function renderAll(){
+  renderKPIs();
+  renderTrends();
+  renderDetails();
+}
+
+function exportCSV(){
+  const div=document.createElement('div');
+  div.innerHTML=$('detailTable').innerHTML;
+  const rows=[...div.querySelectorAll('tr')].map(tr=>[...tr.children].map(td=>'"'+td.textContent.replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob=new Blob(['\ufeff'+rows],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='亲子频道CTR明细.csv'; a.click(); URL.revokeObjectURL(url);
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  const loadingEl = document.getElementById('loading-overlay');
+  fetch('./data.json?_='+Date.now())
+    .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(d=>{
+      DATA = d;
+      dates = [...new Set(DATA.pageRows.map(r=>r.date))].sort();
+      regions = [...new Set(DATA.pageRows.map(r=>r.region))].sort();
+      locales = [...new Set(DATA.pageRows.map(r=>r.locale))].sort();
+      if(loadingEl) loadingEl.remove();
+      const ut = document.getElementById("update-time"); if(ut) ut.textContent = DATA.summary?.updateTime || DATA.summary?.dateMax || "—";
+  initFilters();
+  renderAll();
+  ['dateFilter','regionFilter','localeFilter'].forEach(id=>$(id).addEventListener('change',()=>{ if(id==='regionFilter') renderLocaleOptions(); renderAll(); }));
+  $('resetBtn').addEventListener('click',()=>{ $('dateFilter').value='ALL'; $('regionFilter').value='ALL'; renderLocaleOptions(); $('localeFilter').value='ALL'; renderAll(); });
+  $('showAllBtn').addEventListener('click',()=>{ $('dateFilter').value='ALL'; $('regionFilter').value='ALL'; renderLocaleOptions(); $('localeFilter').value='ALL'; renderAll(); });
+  $('exportBtn').addEventListener('click',exportCSV);
+  document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>{ document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); state.tab=btn.dataset.tab; renderDetails(); }));
+    })
+    .catch(e=>{
+      if(loadingEl) loadingEl.innerHTML='<p style="color:#c0392b;font-size:14px">数据加载失败：'+e.message+'<br>请确认 data.json 文件存在且可访问</p>';
+    });
+});
+</script>
+</body>
+</html>
