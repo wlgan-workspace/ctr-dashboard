@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 亲子频道 CTR 看板数据更新脚本
-用法：python update.py [Excel文件路径]
+用法：python update.py [Excel文件路径]   # Excel 更新
+     python update.py --bq              # BigQuery 更新（等同于 bq_refresh.py --push）
      不传路径则自动在桌面寻找 亲子频道数据.xlsx
 """
 
@@ -365,6 +366,18 @@ def git_push(data_json_path, xlsx_name):
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
+    # --bq flag: delegate entirely to bq_refresh.py
+    if "--bq" in sys.argv:
+        import importlib.util, os
+        bq_script = Path(__file__).parent / "bq_refresh.py"
+        spec = importlib.util.spec_from_file_location("bq_refresh", bq_script)
+        bq = importlib.util.load_from_spec(spec)
+        spec.loader.exec_module(bq)
+        # Rebuild argv without --bq, add --push
+        sys.argv = [sys.argv[0], "--push"] + [a for a in sys.argv[1:] if a != "--bq"]
+        bq.main()
+        return
+
     # Determine xlsx path
     if len(sys.argv) > 1:
         xlsx_path = Path(sys.argv[1])
