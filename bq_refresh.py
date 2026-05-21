@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-BQ → data.json refresh.
+BQ → data.json refresh via bq CLI (no Python library / ADC needed).
 
-Local usage (requires `gcloud auth application-default login`):
+Local usage (requires `gcloud auth login`):
     python bq_refresh.py
 
-GitHub Actions usage (SA key in GOOGLE_APPLICATION_CREDENTIALS):
+GitHub Actions usage (after google-github-actions/setup-gcloud step):
     python bq_refresh.py --push
 
 Options:
@@ -17,6 +17,8 @@ Options:
 import argparse
 import datetime
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -24,7 +26,7 @@ from pathlib import Path
 REPO_DIR = Path(__file__).parent
 DATA_JSON = REPO_DIR / "data.json"
 
-PROJECT = "trip-ibu-bi-dw-etl"
+PROJECT = "trip-ibu-adhoc"  # billing project; data lives in trip-ibu-bi-dw-etl
 
 LOCALES = [
     "zh-hk", "en-hk", "ko-kr", "zh-tw", "th-th", "en-th", "ja-jp",
@@ -43,7 +45,7 @@ SELECT
 FROM `trip-ibu-bi-dw-etl.ibu_bi_dw_cdw.edw_usr_ubt_ibu_pageview`
 WHERE d >= '{start}' AND d < '{end}'
   AND locale IN ({locales})
-  AND page.p_page = '10651196530'
+  AND page.p_pageid = '10651196530'
   AND ua_channeltype = 'app'
   AND iscrawler = 0
 GROUP BY 1, 2, 3
@@ -84,26 +86,57 @@ GROUP BY 1, 2, 3, 4
 """
 
 
-# ── BQ helpers ────────────────────────────────────────────────────────────────
+# ── BQ CLI helpers ────────────────────────────────────────────────────────────
 
-def ensure_bq_client():
-    try:
-        from google.cloud import bigquery
-    except ImportError:
-        print("Installing google-cloud-bigquery…")
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "google-cloud-bigquery"],
-            check=True,
-        )
-        from google.cloud import bigquery
-    return bigquery.Client(project=PROJECT)
+WIN_BQ = r"C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\bin\bq.cmd"
+WIN_SDK_BIN = r"C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\bin"
 
 
-def run_query(client, sql, description=""):
-    print(f"  Querying {description}…")
-    rows = list(client.query(sql).result())
-    print(f"    → {len(rows)} rows")
-    return [dict(row) for row in rows]
+def find_bq():
+    if sys.platform == "win32" and Path(WIN_BQ).exists():
+        return WIN_BQ
+    bq = shutil.which("bq")
+    if bq:
+        return bq
+    raise RuntimeError(
+        "bq CLI not found. Install Google Cloud SDK: https://cloud.google.com/sdk/docs/install"
+    )
+
+
+def run_query(sql, description=""):
+    print(f"  Querying {description}...")
+    bq = find_bq()
+
+    # bq.cmd needs gcloud.cmd on PATH; inject SDK bin on Windows
+    env = os.environ.copy()
+    if sys.platform == "win32" and Path(WIN_SDK_BIN).exists():
+        env["PATH"] = WIN_SDK_BIN + os.pathsep + env.get("PATH", "")
+
+    bq_quoted = f'"{bq}"' if " " in bq else bq
+    cmd_str = (
+        f'{bq_quoted} query'
+        f' --project_id={PROJECT}'
+        f' --use_legacy_sql=false'
+        f' --format=json'
+        f' --quiet'
+    )
+
+    r = subprocess.run(
+        cmd_str,
+        input=sql.encode("utf-8"),
+        capture_output=True,
+        shell=True,
+        env=env,
+    )
+    stdout = r.stdout.decode("utf-8", errors="replace")
+    stderr = r.stderr.decode("utf-8", errors="replace")
+
+    if r.returncode != 0:
+        raise RuntimeError(f"BQ query failed ({description}):\n{stderr.strip()}")
+
+    rows = json.loads(stdout) if stdout.strip() else []
+    print(f"    -> {len(rows)} rows")
+    return rows
 
 
 # ── Date helpers ──────────────────────────────────────────────────────────────
@@ -117,9 +150,6 @@ def date_serial(date_str):
 # ── Data build ────────────────────────────────────────────────────────────────
 
 def build_data(start: str, end: str, existing_data: dict) -> dict:
-    """Query BQ and return the full DATA dict ready for data.json."""
-    client = ensure_bq_client()
-
     locale_sql = ", ".join(f"'{l}'" for l in LOCALES)
 
     # ── componentMeta: always reuse from data.json (stable config) ──
@@ -129,7 +159,7 @@ def build_data(start: str, end: str, existing_data: dict) -> dict:
             "componentMeta not found in data.json. "
             "Run update.py from the Excel file first to initialise it."
         )
-    logkey_map = {}  # logkey → ('exposure'|'click', comp_name, rule)
+    logkey_map = {}
     all_logkeys = set()
     for m in comp_meta:
         if m.get("exposureKey"):
@@ -140,12 +170,11 @@ def build_data(start: str, end: str, existing_data: dict) -> dict:
             all_logkeys.add(m["clickKey"])
 
     logkey_sql = ", ".join(f"'{k}'" for k in all_logkeys)
-
     fmt = dict(start=start, end=end, locales=locale_sql, logkeys=logkey_sql)
 
     # ── Page traffic ──
-    page_rows_bq = run_query(client, SQL_PAGE.format(**fmt), "page traffic")
-    flow_rows_bq = run_query(client, SQL_FLOW.format(**fmt), "flow traffic")
+    page_rows_bq = run_query(SQL_PAGE.format(**fmt), "page traffic")
+    flow_rows_bq = run_query(SQL_FLOW.format(**fmt), "flow traffic")
 
     page_map = {}
     for r in page_rows_bq:
@@ -168,11 +197,9 @@ def build_data(start: str, end: str, existing_data: dict) -> dict:
     pageRows = sorted(page_map.values(), key=lambda x: (x["date"], x["region"], x["locale"]))
 
     # ── Component events ──
-    events_bq = run_query(client, SQL_EVENTS.format(**fmt), "component events")
+    events_bq = run_query(SQL_EVENTS.format(**fmt), "component events")
 
-    page_by_key = {(r["date"], r["region"], r["locale"]): r for r in pageRows}
     comp_data = {}
-
     for r in events_bq:
         d_str = str(r["date"])
         logkey = str(r["logkey"])

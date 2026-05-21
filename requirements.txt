@@ -1,1 +1,1 @@
-google-cloud-bigquery>=3.0.0
+# no Python dependencies needed; bq CLI handles BigQuery access
