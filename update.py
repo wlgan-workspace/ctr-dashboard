@@ -118,7 +118,11 @@ def load_component_meta(ws):
     return meta, logkey_map
 
 
-def build_data(xlsx_path):
+def build_data(xlsx_path, existing_data=None):
+    """
+    existing_data: dict loaded from current data.json.
+    If provided, componentMeta is preserved from it (stable config).
+    """
     try:
         import openpyxl
     except ImportError:
@@ -150,8 +154,19 @@ def build_data(xlsx_path):
 
     pageRows = sorted(page_map.values(), key=lambda x: (x["d"], x["region"], x["locale"]))
 
-    # ── Sheet 3: 组件埋点 (component meta) ──
-    comp_meta, logkey_map = load_component_meta(sheets[3])
+    # ── componentMeta: reuse existing config, or derive from Sheet 3 ──
+    if existing_data and existing_data.get("componentMeta"):
+        comp_meta = existing_data["componentMeta"]
+        logkey_map = {}
+        for m in comp_meta:
+            if m.get("exposureKey"):
+                logkey_map[m["exposureKey"]] = ("exposure", m["component"], m["exposureRule"])
+            if m.get("clickKey"):
+                logkey_map[m["clickKey"]] = ("click", m["component"], m["exposureRule"])
+        print(f"  componentMeta: reused {len(comp_meta)} components from data.json")
+    else:
+        comp_meta, logkey_map = load_component_meta(sheets[3])
+        print(f"  componentMeta: derived {len(comp_meta)} components from sheet 4")
 
     # ── Sheet 2: 组件数据 (d, region, locale, logkey, uv) ──
     comp_data = {}  # (d, region, locale, comp_name) → {exposureUV, clickUV, ...}
@@ -176,19 +191,12 @@ def build_data(xlsx_path):
         else:
             comp_data[key]["clickUV"] = uv
 
-    # For components with 页面UV rule, fill exposureUV from page_map
+    # Build index for page_uv rule
     page_by_key = {(r["d"], r["region"], r["locale"]): r for r in pageRows}
-    page_uv_comps = {m["component"] for m in comp_meta if m["exposureRule"] == "页面UV"}
 
-    for key, row in list(comp_data.items()):
-        if row["component"] in page_uv_comps:
-            pk = (key[0], key[1], key[2])
-            row["exposureUV"] = page_by_key.get(pk, {}).get("pageUV", 0)
-
-    # For 页面UV components, also ensure rows exist for every (d, region, locale)
+    # Ensure all components have rows for every (d, region, locale), filling zeros where missing
     for m in comp_meta:
-        if m["exposureRule"] != "页面UV":
-            continue
+        is_page_uv = m["exposureRule"] == "页面UV"
         for pr in pageRows:
             key = (pr["d"], pr["region"], pr["locale"], m["component"])
             if key not in comp_data:
@@ -196,10 +204,12 @@ def build_data(xlsx_path):
                     "d": pr["d"], "date": pr["date"],
                     "region": pr["region"], "locale": pr["locale"],
                     "component": m["component"],
-                    "exposureUV": pr["pageUV"],
+                    "exposureUV": pr["pageUV"] if is_page_uv else 0,
                     "clickUV": 0,
-                    "exposureRule": "页面UV",
+                    "exposureRule": m["exposureRule"],
                 }
+            elif is_page_uv:
+                comp_data[key]["exposureUV"] = pr["pageUV"]
 
     componentRows = sorted(comp_data.values(),
                            key=lambda x: (x["d"], x["region"], x["locale"], x["component"]))
@@ -372,8 +382,14 @@ def main():
 
     print(f"📂 读取数据：{xlsx_path.name}")
 
+    # Load existing data.json to reuse componentMeta config
+    existing = None
+    if DATA_JSON.exists():
+        with open(DATA_JSON, encoding="utf-8") as f:
+            existing = json.load(f)
+
     # Build DATA
-    data = build_data(xlsx_path)
+    data = build_data(xlsx_path, existing_data=existing)
     print(f"  pageRows: {len(data['pageRows'])}  componentRows: {len(data['componentRows'])}")
     print(f"  日期范围: {data['summary']['dateMin']} ~ {data['summary']['dateMax']}")
 
