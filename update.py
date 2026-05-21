@@ -366,14 +366,24 @@ def git_push(data_json_path, xlsx_name):
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
-    # --bq flag: delegate entirely to bq_refresh.py
+    # --feishu flag: delegate entirely to feishu_refresh.py
+    if "--feishu" in sys.argv:
+        import importlib.util
+        script = Path(__file__).parent / "feishu_refresh.py"
+        spec = importlib.util.spec_from_file_location("feishu_refresh", script)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        sys.argv = [sys.argv[0], "--push"] + [a for a in sys.argv[1:] if a != "--feishu"]
+        mod.main()
+        return
+
+    # --bq flag: delegate entirely to bq_refresh.py (kept for reference)
     if "--bq" in sys.argv:
-        import importlib.util, os
+        import importlib.util
         bq_script = Path(__file__).parent / "bq_refresh.py"
         spec = importlib.util.spec_from_file_location("bq_refresh", bq_script)
         bq = importlib.util.load_from_spec(spec)
         spec.loader.exec_module(bq)
-        # Rebuild argv without --bq, add --push
         sys.argv = [sys.argv[0], "--push"] + [a for a in sys.argv[1:] if a != "--bq"]
         bq.main()
         return

@@ -1,4 +1,4 @@
-name: Daily BQ Refresh
+name: Daily Feishu Refresh
 
 on:
   schedule:
@@ -19,31 +19,26 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK (installs bq CLI)
-        uses: google-github-actions/setup-gcloud@v2
-
       - name: Configure git identity
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Refresh data.json from BigQuery
+      - name: Refresh data.json from Feishu
         id: refresh
+        env:
+          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
         run: |
-          python bq_refresh.py --push --days 7 --lag 1 2>&1 | tee /tmp/bq_output.txt
+          python feishu_refresh.py --push 2>&1 | tee /tmp/refresh_output.txt
           echo "output<<EOF" >> $GITHUB_OUTPUT
-          cat /tmp/bq_output.txt >> $GITHUB_OUTPUT
+          cat /tmp/refresh_output.txt >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Notify Feishu on success
         if: success()
         run: |
-          OUTPUT=$(cat /tmp/bq_output.txt)
+          OUTPUT=$(cat /tmp/refresh_output.txt)
           curl -s -X POST "${{ secrets.FEISHU_WEBHOOK }}" \
             -H "Content-Type: application/json" \
             -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"CTR 看板数据已更新 ✅\n${OUTPUT}\n\n查看看板：https://wlgan-workspace.github.io/ctr-dashboard/\"}}"
@@ -51,7 +46,7 @@ jobs:
       - name: Notify Feishu on failure
         if: failure()
         run: |
-          OUTPUT=$(cat /tmp/bq_output.txt 2>/dev/null || echo "（无输出）")
+          OUTPUT=$(cat /tmp/refresh_output.txt 2>/dev/null || echo "（无输出）")
           curl -s -X POST "${{ secrets.FEISHU_WEBHOOK }}" \
             -H "Content-Type: application/json" \
             -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"CTR 看板数据更新失败 ❌\n错误信息：${OUTPUT}\n\n请检查 GitHub Actions 日志\"}}"
