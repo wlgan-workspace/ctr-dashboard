@@ -33,4 +33,25 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Refresh data.json from BigQuery
-        run: python bq_refresh.py --push --days 7 --lag 1
+        id: refresh
+        run: |
+          python bq_refresh.py --push --days 7 --lag 1 2>&1 | tee /tmp/bq_output.txt
+          echo "output<<EOF" >> $GITHUB_OUTPUT
+          cat /tmp/bq_output.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Notify Feishu on success
+        if: success()
+        run: |
+          OUTPUT=$(cat /tmp/bq_output.txt)
+          curl -s -X POST "${{ secrets.FEISHU_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"CTR 看板数据已更新 ✅\n${OUTPUT}\n\n查看看板：https://wlgan-workspace.github.io/ctr-dashboard/\"}}"
+
+      - name: Notify Feishu on failure
+        if: failure()
+        run: |
+          OUTPUT=$(cat /tmp/bq_output.txt 2>/dev/null || echo "（无输出）")
+          curl -s -X POST "${{ secrets.FEISHU_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"CTR 看板数据更新失败 ❌\n错误信息：${OUTPUT}\n\n请检查 GitHub Actions 日志\"}}"
