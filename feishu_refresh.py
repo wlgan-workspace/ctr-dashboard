@@ -93,15 +93,18 @@ def _refresh_user_token(app_id, app_secret, refresh_token):
 
 def _rotate_github_secret(secret_name, new_value):
     import base64
-    github_token = os.environ.get("GITHUB_TOKEN", "")
+    # Requires REPO_PAT secret (classic PAT with repo scope) — optional.
+    # Without it, rotation is skipped and the refresh_token silently stays as-is.
+    # Daily runs keep the sliding 30-day window alive so expiry is unlikely.
+    github_token = os.environ.get("REPO_PAT", "") or os.environ.get("GITHUB_TOKEN", "")
     github_repo = os.environ.get("GITHUB_REPOSITORY", "")
     if not github_token or not github_repo:
-        print(f"  [skip] Not in GitHub Actions — cannot auto-rotate {secret_name}")
+        print(f"  [skip] Cannot auto-rotate {secret_name} (REPO_PAT not set)")
         return
     try:
         from nacl import public  # PyNaCl
     except ImportError:
-        print(f"  [warn] PyNaCl not installed — {secret_name} not rotated (will expire in 30 days)")
+        print(f"  [warn] PyNaCl not installed — {secret_name} not rotated")
         return
 
     api = f"https://api.github.com/repos/{github_repo}/actions/secrets"
