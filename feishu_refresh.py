@@ -59,11 +59,17 @@ def get_access_token():
 
 def read_sheet(access_token, sheet_id, max_rows=5000):
     """Return data rows (header row excluded), trailing empty rows stripped."""
+    import urllib.parse
     range_str = f"{sheet_id}!A1:Z{max_rows}"
-    url = f"{FEISHU_API}/sheets/v2/spreadsheets/{SPREADSHEET_TOKEN}/values/{range_str}"
+    encoded_range = urllib.parse.quote(range_str, safe="")
+    url = f"{FEISHU_API}/sheets/v2/spreadsheets/{SPREADSHEET_TOKEN}/values/{encoded_range}"
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {access_token}"})
-    with urllib.request.urlopen(req) as r:
-        resp = json.loads(r.read())
+    try:
+        with urllib.request.urlopen(req) as r:
+            resp = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Sheet read failed ({sheet_id}): HTTP {e.code} {e.reason} — {body[:500]}")
     if resp.get("code") != 0:
         raise RuntimeError(f"Sheet read failed ({sheet_id}): {resp}")
     all_rows = (resp.get("data") or {}).get("valueRange", {}).get("values") or []

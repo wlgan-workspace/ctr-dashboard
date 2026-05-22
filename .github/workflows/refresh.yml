@@ -30,10 +30,8 @@ jobs:
           FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
           FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
         run: |
+          set -o pipefail
           python feishu_refresh.py --push 2>&1 | tee /tmp/refresh_output.txt
-          echo "output<<EOF" >> $GITHUB_OUTPUT
-          cat /tmp/refresh_output.txt >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Notify Feishu on success
         if: success()
