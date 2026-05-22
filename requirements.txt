@@ -1,1 +1,2 @@
-# no Python dependencies needed; feishu_refresh.py uses stdlib urllib only
+# PyNaCl required for rotating FEISHU_USER_REFRESH_TOKEN GitHub Secret
+PyNaCl

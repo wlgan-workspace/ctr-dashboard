@@ -38,6 +38,11 @@ FEISHU_API = "https://open.feishu.cn/open-apis"
 def get_access_token():
     app_id = os.environ.get("FEISHU_APP_ID", "")
     app_secret = os.environ.get("FEISHU_APP_SECRET", "")
+    user_refresh_token = os.environ.get("FEISHU_USER_REFRESH_TOKEN", "")
+
+    if user_refresh_token:
+        return _refresh_user_token(app_id, app_secret, user_refresh_token)
+
     if not app_id or not app_secret:
         raise RuntimeError(
             "Environment variables FEISHU_APP_ID and FEISHU_APP_SECRET must be set."
@@ -53,6 +58,75 @@ def get_access_token():
     if resp.get("code") != 0:
         raise RuntimeError(f"Feishu auth failed: {resp}")
     return resp["tenant_access_token"]
+
+
+def _refresh_user_token(app_id, app_secret, refresh_token):
+    url = f"{FEISHU_API}/authen/v2/oauth/token"
+    payload = json.dumps({
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+        "client_id": app_id,
+        "client_secret": app_secret,
+    }).encode()
+    req = urllib.request.Request(url, data=payload, method="POST",
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req) as r:
+            resp = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"User token refresh failed: HTTP {e.code} — {err_body[:300]}")
+
+    access_token = resp.get("access_token")
+    new_refresh_token = resp.get("refresh_token")
+
+    if not access_token:
+        raise RuntimeError(f"Failed to get user_access_token: {resp}")
+
+    print("  Using user_access_token (personal OAuth)")
+
+    if new_refresh_token and new_refresh_token != refresh_token:
+        _rotate_github_secret("FEISHU_USER_REFRESH_TOKEN", new_refresh_token)
+
+    return access_token
+
+
+def _rotate_github_secret(secret_name, new_value):
+    import base64
+    github_token = os.environ.get("GITHUB_TOKEN", "")
+    github_repo = os.environ.get("GITHUB_REPOSITORY", "")
+    if not github_token or not github_repo:
+        print(f"  [skip] Not in GitHub Actions — cannot auto-rotate {secret_name}")
+        return
+    try:
+        from nacl import public  # PyNaCl
+    except ImportError:
+        print(f"  [warn] PyNaCl not installed — {secret_name} not rotated (will expire in 30 days)")
+        return
+
+    api = f"https://api.github.com/repos/{github_repo}/actions/secrets"
+    headers = {
+        "Authorization": f"Bearer {github_token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+    req = urllib.request.Request(f"{api}/public-key", headers=headers)
+    with urllib.request.urlopen(req) as r:
+        pk = json.loads(r.read())
+
+    pk_bytes = base64.b64decode(pk["key"])
+    sealed = public.SealedBox(public.PublicKey(pk_bytes)).encrypt(new_value.encode())
+    encrypted = base64.b64encode(sealed).decode()
+
+    body = json.dumps({"encrypted_value": encrypted, "key_id": pk["key_id"]}).encode()
+    req = urllib.request.Request(
+        f"{api}/{secret_name}", data=body, method="PUT",
+        headers={**headers, "Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req) as r:
+        pass
+    print(f"  Rotated GitHub Secret: {secret_name}")
 
 
 # ── Sheet reading ─────────────────────────────────────────────────────────────
