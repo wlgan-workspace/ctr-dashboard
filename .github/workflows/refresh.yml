@@ -2,8 +2,8 @@ name: Daily Feishu Refresh
 
 on:
   schedule:
-    # 01:00 UTC = 09:00 SGT
-    - cron: "0 1 * * *"
+    # 04:00 UTC = 12:00 SGT
+    - cron: "0 4 * * *"
   workflow_dispatch:  # allow manual trigger
 
 jobs:
